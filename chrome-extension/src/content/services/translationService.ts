@@ -1,32 +1,19 @@
 // Cadence - Translation Service (Batch Background + On-Device Chrome AI Fallback)
 import type { TranscriptSegment } from '../types.ts'
+import { getGeminiApiKey, translateSegmentsViaGemini } from './geminiService.ts'
+import {
+  CHROME_AI_PROGRESS_INTERVAL,
+  FALLBACK_SOURCE_LANGUAGE,
+  MESSAGE_ACTIONS,
+  SUPPORTED_LANGUAGES,
+} from '../../shared/constants/index.ts'
+import type { TargetLanguage, TranslationEngine } from '../../shared/constants/index.ts'
+import { sendBackgroundMessage } from '../../shared/utils/index.ts'
+import type { TranslateBatchResponse } from '../../shared/types/messages.ts'
 
-export interface TargetLanguage {
-  code: string
-  name: string
-}
-
-export const SUPPORTED_LANGUAGES: TargetLanguage[] = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish (Español)' },
-  { code: 'fr', name: 'French (Français)' },
-  { code: 'de', name: 'German (Deutsch)' },
-  { code: 'it', name: 'Italian (Italiano)' },
-  { code: 'pt', name: 'Portuguese (Português)' },
-  { code: 'ru', name: 'Russian (Русский)' },
-  { code: 'zh-CN', name: 'Chinese (中文)' },
-  { code: 'ja', name: 'Japanese (日本語)' },
-  { code: 'ko', name: 'Korean (한국어)' },
-  { code: 'ar', name: 'Arabic (العربية)' },
-  { code: 'hi', name: 'Hindi (हिन्दी)' },
-  { code: 'bn', name: 'Bengali (বাংলা)' },
-  { code: 'tr', name: 'Turkish (Türkçe)' },
-  { code: 'nl', name: 'Dutch (Nederlands)' },
-  { code: 'pl', name: 'Polish (Polski)' },
-  { code: 'vi', name: 'Vietnamese (Tiếng Việt)' },
-  { code: 'id', name: 'Indonesian (Bahasa Indonesia)' },
-  { code: 'uk', name: 'Ukrainian (Українська)' },
-]
+// Re-exported so existing imports (and the transcriptService facade) keep working.
+export { SUPPORTED_LANGUAGES }
+export type { TargetLanguage }
 
 export function isTranslationApiSupported(): boolean {
   const win = window as any
@@ -43,19 +30,19 @@ export async function detectLanguage(text: string): Promise<string> {
       const detector = await win.translation.createDetector()
       const results = await detector.detect(text)
       if (results && results.length > 0) {
-        return results[0].detectedLanguage || 'de'
+        return results[0].detectedLanguage || FALLBACK_SOURCE_LANGUAGE
       }
     } else if (win.ai?.languageDetector && typeof win.ai.languageDetector.create === 'function') {
       const detector = await win.ai.languageDetector.create()
       const results = await detector.detect(text)
       if (results && results.length > 0) {
-        return results[0].detectedLanguage || 'de'
+        return results[0].detectedLanguage || FALLBACK_SOURCE_LANGUAGE
       }
     }
   } catch (err) {
     console.debug('[Cadence] Language detection error:', err)
   }
-  return 'de'
+  return FALLBACK_SOURCE_LANGUAGE
 }
 
 /**
@@ -65,7 +52,8 @@ export async function translateSegmentsViaChromeAi(
   segments: TranscriptSegment[],
   targetLang = 'en',
   sourceLang?: string,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  onBatchComplete?: (translatedSegments: TranscriptSegment[]) => void
 ): Promise<{ translatedSegments: TranscriptSegment[]; detectedSource: string }> {
   const win = window as any
   let detected = sourceLang
@@ -73,7 +61,7 @@ export async function translateSegmentsViaChromeAi(
     const sample = segments.slice(0, 10).map((s) => s.text).join(' ')
     detected = await detectLanguage(sample)
   }
-  if (!detected) detected = 'de'
+  if (!detected) detected = FALLBACK_SOURCE_LANGUAGE
 
   let translator: any = null
 
@@ -111,6 +99,9 @@ export async function translateSegmentsViaChromeAi(
     if (onProgress) {
       onProgress(idx + 1, total)
     }
+    if (onBatchComplete && ((idx + 1) % CHROME_AI_PROGRESS_INTERVAL === 0 || idx + 1 === total)) {
+      onBatchComplete([...translatedSegments, ...segments.slice(idx + 1)])
+    }
   }
 
   return {
@@ -121,18 +112,34 @@ export async function translateSegmentsViaChromeAi(
 
 /**
  * Universal translate function:
- * Uses zero-config background translation (single batch request)
- * and falls back to on-device AI if available.
+ * engine 'cadence' (default): zero-config background translation (single batch request)
+ * with on-device AI as fallback. engine 'gemini': Gemini AI using the user's API key.
  */
 export async function translateSegments(
   segments: TranscriptSegment[],
   targetLang = 'en',
   sourceLang = 'auto',
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  engine: TranslationEngine = 'cadence',
+  onBatchComplete?: (translatedSegments: TranscriptSegment[]) => void
 ): Promise<{ translatedSegments: TranscriptSegment[]; detectedSource: string }> {
   const total = segments.length
   if (total === 0) {
     return { translatedSegments: [], detectedSource: sourceLang }
+  }
+
+  // 0. Gemini AI translation (when chosen and an API key is saved)
+  if (engine === 'gemini') {
+    const apiKey = await getGeminiApiKey()
+    if (!apiKey) {
+      throw new Error('No Gemini API key set. Add it in the Cadence popup.')
+    }
+    const targetLangName = SUPPORTED_LANGUAGES.find((l) => l.code === targetLang)?.name || targetLang
+    try {
+      return await translateSegmentsViaGemini(segments, targetLangName, sourceLang, onProgress, onBatchComplete)
+    } catch (err: any) {
+      throw new Error(`Gemini translation failed: ${err?.message || 'unknown error'}`)
+    }
   }
 
   // 1. Single Request via Extension Background Service Worker
@@ -141,28 +148,21 @@ export async function translateSegments(
       if (onProgress) onProgress(0, total)
       const allTexts = segments.map((s) => s.text)
 
-      const result = await new Promise<{ texts: string[]; detectedSource: string }>((resolve, reject) => {
-        chrome.runtime.sendMessage(
-          {
-            action: 'TRANSLATE_ALL',
-            texts: allTexts,
-            sourceLang,
-            targetLang,
-          },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              return reject(new Error(chrome.runtime.lastError.message))
-            }
-            if (!response || !response.success) {
-              return reject(new Error(response?.error || 'Translation failed'))
-            }
-            resolve({
-              texts: response.translatedTexts || [],
-              detectedSource: response.detectedSource || sourceLang,
-            })
-          }
-        )
+      const response = await sendBackgroundMessage<TranslateBatchResponse>({
+        action: MESSAGE_ACTIONS.translateAll,
+        texts: allTexts,
+        sourceLang,
+        targetLang,
       })
+
+      if (!response || !response.success) {
+        throw new Error(response?.error || 'Translation failed')
+      }
+
+      const result = {
+        texts: response.translatedTexts || [],
+        detectedSource: response.detectedSource || sourceLang,
+      }
 
       if (onProgress) onProgress(total, total)
 
@@ -171,6 +171,10 @@ export async function translateSegments(
         text: seg.text,
         translatedText: result.texts[idx] || undefined,
       }))
+
+      if (onBatchComplete) {
+        onBatchComplete(translatedSegments)
+      }
 
       return {
         translatedSegments,
@@ -183,16 +187,8 @@ export async function translateSegments(
 
   // 2. Secondary: On-Device AI
   if (isTranslationApiSupported()) {
-    return translateSegmentsViaChromeAi(segments, targetLang, sourceLang, onProgress)
+    return translateSegmentsViaChromeAi(segments, targetLang, sourceLang, onProgress, onBatchComplete)
   }
 
   throw new Error('Translation service is temporarily unreachable. Please try again.')
-}
-
-export function translateSegmentsToEnglish(
-  segments: TranscriptSegment[],
-  sourceLang = 'auto',
-  onProgress?: (done: number, total: number) => void
-) {
-  return translateSegments(segments, 'en', sourceLang, onProgress)
 }

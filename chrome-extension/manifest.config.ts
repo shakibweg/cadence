@@ -13,6 +13,7 @@ export default defineManifest({
     128: 'public/icons/icon128.png',
   },
   action: {
+    default_popup: 'src/popup/index.html',
     default_icon: {
       16: 'public/icons/icon16.png',
       32: 'public/icons/icon32.png',
@@ -23,12 +24,13 @@ export default defineManifest({
   },
   permissions: [
     'sidePanel',
-    'contentSettings',
     'storage',
     'scripting',
   ],
   host_permissions: [
     'https://translate.googleapis.com/*',
+    'https://api.apify.com/*',
+    'https://generativelanguage.googleapis.com/*',
     'https://*.youtube.com/*',
     'https://youtube.com/*',
   ],

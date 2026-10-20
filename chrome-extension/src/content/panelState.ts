@@ -1,7 +1,9 @@
 // Cadence - Shared panel visibility state between the action button and transcript panel
 // The panel starts closed by default and does not pop open automatically on page load.
 
-const STORAGE_KEY = 'cadence_panel_open'
+import { EVENTS, STORAGE_KEYS } from '../shared/constants/index.ts'
+
+const STORAGE_KEY = STORAGE_KEYS.panelOpen
 
 type InjectHandler = () => boolean
 let panelInjectHandler: InjectHandler | null = null
@@ -33,7 +35,7 @@ if (typeof chrome !== 'undefined' && chrome.storage?.local) {
     if (typeof changes[STORAGE_KEY]?.newValue === 'boolean') {
       isPanelOpenState = changes[STORAGE_KEY].newValue
       window.dispatchEvent(
-        new CustomEvent('cadence-transcript-panel-toggle', {
+        new CustomEvent(EVENTS.panelToggle, {
           detail: { isOpen: isPanelOpenState },
         })
       )
@@ -52,7 +54,7 @@ export function setPanelOpen(open: boolean): void {
   } catch {}
 
   window.dispatchEvent(
-    new CustomEvent('cadence-transcript-panel-toggle', {
+    new CustomEvent(EVENTS.panelToggle, {
       detail: { isOpen: open },
     })
   )

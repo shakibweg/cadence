@@ -4,6 +4,7 @@ import './App.css'
 import Transcript from './Transcript.tsx'
 import { useYouTubeTheme } from '../hooks/useYouTubeTheme.ts'
 import { isPanelOpen } from '../panelState.ts'
+import { EVENTS } from '../../shared/constants/index.ts'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -71,9 +72,9 @@ export default function App({
         setIsOpen(detail.isOpen)
       }
     }
-    window.addEventListener('cadence-transcript-panel-toggle', handleToggle)
+    window.addEventListener(EVENTS.panelToggle, handleToggle)
     return () => {
-      window.removeEventListener('cadence-transcript-panel-toggle', handleToggle)
+      window.removeEventListener(EVENTS.panelToggle, handleToggle)
     }
   }, [])
 

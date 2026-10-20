@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Captions } from 'lucide-react'
 import { useYouTubeTheme } from '../hooks/useYouTubeTheme.ts'
 import { isPanelOpen, setPanelOpen, togglePanelOpen, ensurePanelInjected } from '../panelState.ts'
+import { DOM_IDS, EVENTS, TIMING } from '../../shared/constants/index.ts'
 
 export default function TranscriptActionButton() {
   const theme = useYouTubeTheme()
@@ -22,11 +23,11 @@ export default function TranscriptActionButton() {
       }
     }
 
-    window.addEventListener('cadence-transcript-panel-toggle', handleToggle)
-    window.addEventListener('cadence-transcript-panel-toggle-click', handleToggleClick)
+    window.addEventListener(EVENTS.panelToggle, handleToggle)
+    window.addEventListener(EVENTS.panelToggleClick, handleToggleClick)
     return () => {
-      window.removeEventListener('cadence-transcript-panel-toggle', handleToggle)
-      window.removeEventListener('cadence-transcript-panel-toggle-click', handleToggleClick)
+      window.removeEventListener(EVENTS.panelToggle, handleToggle)
+      window.removeEventListener(EVENTS.panelToggleClick, handleToggleClick)
     }
   }, [])
 
@@ -45,7 +46,7 @@ export default function TranscriptActionButton() {
     if (nextState) {
       // If opening, smooth scroll to the transcript panel in the right column
       window.setTimeout(() => {
-        const panel = document.getElementById('yt-playlist-top-injected')
+        const panel = document.getElementById(DOM_IDS.panelContainer)
         if (panel) {
           panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
           const banner = panel.querySelector<HTMLElement>('.yt-playlist-top-banner')
@@ -56,10 +57,10 @@ export default function TranscriptActionButton() {
             window.setTimeout(() => {
               banner.style.borderColor = ''
               banner.style.boxShadow = ''
-            }, 1500)
+            }, TIMING.panelHighlightMs)
           }
         }
-      }, 60)
+      }, TIMING.panelScrollDelayMs)
     }
   }
 

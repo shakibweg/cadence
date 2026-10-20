@@ -6,10 +6,11 @@ import TranscriptActionButton from './views/TranscriptActionButton.tsx'
 import VideoOverlay from './views/VideoOverlay.tsx'
 import type { TargetInsertion } from './types.ts'
 import { registerPanelInjector } from './panelState.ts'
+import { DOM_IDS, TIMING, YT_EVENTS } from '../shared/constants/index.ts'
 
-const PANEL_CONTAINER_ID = 'yt-playlist-top-injected'
-const ACTION_BTN_CONTAINER_ID = 'yt-transcript-action-btn-injected'
-const VIDEO_OVERLAY_CONTAINER_ID = 'cadence-video-overlay-container'
+const PANEL_CONTAINER_ID = DOM_IDS.panelContainer
+const ACTION_BTN_CONTAINER_ID = DOM_IDS.actionButtonContainer
+const VIDEO_OVERLAY_CONTAINER_ID = DOM_IDS.videoOverlayContainer
 
 let panelRoot: Root | null = null
 let overlayRoot: Root | null = null
@@ -351,6 +352,36 @@ function injectAll() {
   injectVideoOverlay()
 }
 
+/** True when any injected element is missing or no longer in its expected place. */
+function injectedUiNeedsUpdate(): boolean {
+  const existingPanel = document.getElementById(PANEL_CONTAINER_ID)
+  const targetPanel = getPanelInsertion()
+  const existingActionBtn = document.getElementById(ACTION_BTN_CONTAINER_ID)
+  const targetActionBtn = getActionBtnInsertion()
+
+  const isPanelParentVisible = existingPanel ? isElementVisible(existingPanel.parentElement) : false
+  const panelNeedsUpdate =
+    !existingPanel ||
+    !isPanelParentVisible ||
+    (targetPanel &&
+      (existingPanel.parentElement !== targetPanel.parent ||
+        existingPanel.nextElementSibling !== targetPanel.before))
+
+  const isBtnParentVisible = existingActionBtn ? isElementVisible(existingActionBtn.parentElement) : false
+  const btnNeedsUpdate =
+    !existingActionBtn ||
+    !isBtnParentVisible ||
+    (targetActionBtn &&
+      (existingActionBtn.parentElement !== targetActionBtn.parent ||
+        existingActionBtn.nextElementSibling !== targetActionBtn.before))
+
+  const existingOverlay = document.getElementById(VIDEO_OVERLAY_CONTAINER_ID)
+  const playerEl = getPlayerElement()
+  const overlayNeedsUpdate = !existingOverlay || (playerEl && existingOverlay.parentElement !== playerEl)
+
+  return Boolean(panelNeedsUpdate || btnNeedsUpdate || overlayNeedsUpdate)
+}
+
 function init() {
   registerPanelInjector(injectPanel)
   injectAll()
@@ -358,54 +389,31 @@ function init() {
   // YouTube SPA navigation events
   const scheduleReinjection = () => {
     injectAll()
-    setTimeout(injectAll, 200)
-    setTimeout(injectAll, 700)
-    setTimeout(injectAll, 1500)
+    for (const delay of TIMING.reinjectDelaysMs) {
+      setTimeout(injectAll, delay)
+    }
   }
 
-  window.addEventListener('yt-navigate-finish', scheduleReinjection)
-  window.addEventListener('yt-page-data-updated', () => setTimeout(injectAll, 300))
-  window.addEventListener('popstate', () => setTimeout(injectAll, 200))
+  window.addEventListener(YT_EVENTS.navigateFinish, scheduleReinjection)
+  window.addEventListener(YT_EVENTS.pageDataUpdated, () => setTimeout(injectAll, TIMING.pageDataReinjectMs))
+  window.addEventListener(YT_EVENTS.popstate, () => setTimeout(injectAll, TIMING.popstateReinjectMs))
 
-  // MutationObserver to ensure elements stay attached only on watch pages
-  let debounceTimer: number | undefined
+  // MutationObserver keeps injected elements attached on watch pages. YouTube mutates its DOM
+  // constantly, so the (layout-forcing) attachment check is throttled to once per interval.
+  let checkScheduled = false
   const observer = new MutationObserver(() => {
-    if (!isWatchPage()) {
-      cleanupInjected()
-      return
-    }
-
-    const existingPanel = document.getElementById(PANEL_CONTAINER_ID)
-    const targetPanel = getPanelInsertion()
-    const existingActionBtn = document.getElementById(ACTION_BTN_CONTAINER_ID)
-    const targetActionBtn = getActionBtnInsertion()
-
-    const isPanelParentVisible = existingPanel ? isElementVisible(existingPanel.parentElement) : false
-    const panelNeedsUpdate =
-      !existingPanel ||
-      !isPanelParentVisible ||
-      (targetPanel &&
-        (existingPanel.parentElement !== targetPanel.parent ||
-          existingPanel.nextElementSibling !== targetPanel.before))
-
-    const isBtnParentVisible = existingActionBtn ? isElementVisible(existingActionBtn.parentElement) : false
-    const btnNeedsUpdate =
-      !existingActionBtn ||
-      !isBtnParentVisible ||
-      (targetActionBtn &&
-        (existingActionBtn.parentElement !== targetActionBtn.parent ||
-          existingActionBtn.nextElementSibling !== targetActionBtn.before))
-
-    const existingOverlay = document.getElementById(VIDEO_OVERLAY_CONTAINER_ID)
-    const playerEl = getPlayerElement()
-    const overlayNeedsUpdate = !existingOverlay || (playerEl && existingOverlay.parentElement !== playerEl)
-
-    if (panelNeedsUpdate || btnNeedsUpdate || overlayNeedsUpdate) {
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = window.setTimeout(() => {
+    if (checkScheduled) return
+    checkScheduled = true
+    window.setTimeout(() => {
+      checkScheduled = false
+      if (!isWatchPage()) {
+        cleanupInjected()
+        return
+      }
+      if (injectedUiNeedsUpdate()) {
         injectAll()
-      }, 150)
-    }
+      }
+    }, TIMING.observerDebounceMs)
   })
 
   observer.observe(document.body, {

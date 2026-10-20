@@ -1,137 +1,92 @@
 // Cadence - Transcript & Target Language Storage Service
+// Delegates to shared transcriptCache (backed by chrome.storage.local with automatic localStorage migration).
+
 import type { TranscriptData } from '../types.ts'
 import { sanitizeSegmentText } from './transcriptParser.ts'
+import {
+  clearTranscriptFromCache,
+  getTargetLanguageFromCache,
+  loadTranscriptFromCache,
+  saveTargetLanguageToCache,
+  saveTranscriptToCache,
+} from '../../shared/storage/index.ts'
+import { DEFAULT_TARGET_LANGUAGE } from '../../shared/constants/index.ts'
 
-const STORAGE_PREFIX = 'cadence_yt_transcript_'
+/** Sanitize every segment's text after loading from storage. */
+function hydrateTranscript(data: TranscriptData): TranscriptData {
+  if (Array.isArray(data.segments)) {
+    data.segments = data.segments.map((seg) => ({
+      ...seg,
+      text: sanitizeSegmentText(seg.text),
+    }))
+  }
+  return data
+}
 
 /**
- * Save transcript data to localStorage and chrome.storage.local
+ * Save transcript data to storage cache (chrome.storage.local).
  */
 export function saveTranscript(videoId: string, data: TranscriptData): void {
-  const key = videoId ? `${STORAGE_PREFIX}${videoId}` : `${STORAGE_PREFIX}global`
-  try {
-    localStorage.setItem(key, JSON.stringify(data))
-  } catch (err) {
-    console.warn('[Cadence] Failed to save transcript to localStorage', err)
-  }
-
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    chrome.storage.local.set({ [key]: data }).catch(() => {})
-  }
+  saveTranscriptToCache(videoId, data).catch((err) => {
+    console.warn('[Cadence] Failed to save transcript to cache:', err)
+  })
 }
 
 /**
- * Synchronous load of stored transcript from localStorage
+ * Synchronous load fallback for initial mount if cached in memory/legacy.
  */
 export function loadStoredTranscript(videoId: string): TranscriptData | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null
   try {
-    const key = videoId ? `${STORAGE_PREFIX}${videoId}` : `${STORAGE_PREFIX}global`
-    const stored = localStorage.getItem(key)
-    if (stored) {
-      const data = JSON.parse(stored) as TranscriptData
-      if (Array.isArray(data.segments)) {
-        data.segments = data.segments.map((seg) => ({
-          ...seg,
-          text: sanitizeSegmentText(seg.text),
-        }))
-      }
-      return data
+    const raw = localStorage.getItem(`cadence_yt_transcript_${videoId}`)
+    if (raw) {
+      return hydrateTranscript(JSON.parse(raw) as TranscriptData)
     }
-  } catch (err) {
-    console.warn('[Cadence] Failed to load stored transcript', err)
-  }
+  } catch {}
   return null
 }
 
 /**
- * Asynchronous load checking localStorage then chrome.storage.local
+ * Asynchronous load from chrome.storage.local with one-time localStorage migration.
  */
 export async function loadStoredTranscriptAsync(videoId: string): Promise<TranscriptData | null> {
-  const local = loadStoredTranscript(videoId)
-  if (local) return local
-
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    try {
-      const key = videoId ? `${STORAGE_PREFIX}${videoId}` : `${STORAGE_PREFIX}global`
-      const result = await chrome.storage.local.get(key)
-      if (result && result[key]) {
-        const data = result[key] as TranscriptData
-        if (Array.isArray(data.segments)) {
-          data.segments = data.segments.map((seg) => ({
-            ...seg,
-            text: sanitizeSegmentText(seg.text),
-          }))
-        }
-        return data
-      }
-    } catch {}
+  try {
+    const cached = await loadTranscriptFromCache(videoId)
+    if (cached) {
+      return hydrateTranscript(cached as TranscriptData)
+    }
+  } catch (err) {
+    console.warn('[Cadence] Failed to load stored transcript async:', err)
   }
   return null
 }
 
 /**
- * Remove stored transcript for video from both storage providers
+ * Remove stored transcript for video from storage cache.
  */
 export function clearStoredTranscript(videoId: string): void {
-  const key = videoId ? `${STORAGE_PREFIX}${videoId}` : `${STORAGE_PREFIX}global`
-  try {
-    localStorage.removeItem(key)
-  } catch (err) {
-    console.warn('[Cadence] Failed to remove stored transcript', err)
-  }
-
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    chrome.storage.local.remove(key).catch(() => {})
-  }
+  clearTranscriptFromCache(videoId).catch((err) => {
+    console.warn('[Cadence] Failed to clear transcript from cache:', err)
+  })
 }
 
 // -------------------------------------------------------------
 // Target Language Preference Storage
 // -------------------------------------------------------------
 
-const TARGET_LANG_KEY = 'cadence_yt_target_lang'
-let cachedTargetLang: string = ''
-
 export function getStoredTargetLanguage(): string {
-  if (cachedTargetLang) return cachedTargetLang
-  try {
-    const val = localStorage.getItem(TARGET_LANG_KEY)
-    if (val) {
-      cachedTargetLang = val
-      return val
-    }
-  } catch {
-    // ignore
+  // Synchronous read fallback for instant initial render
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const val = localStorage.getItem('cadence_yt_target_lang')
+    if (val) return val
   }
-  return 'en'
+  return DEFAULT_TARGET_LANGUAGE
 }
 
 export async function loadStoredTargetLanguageAsync(): Promise<string> {
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    try {
-      const result = await chrome.storage.local.get(TARGET_LANG_KEY)
-      if (result && typeof result[TARGET_LANG_KEY] === 'string' && result[TARGET_LANG_KEY]) {
-        cachedTargetLang = result[TARGET_LANG_KEY]
-        try {
-          localStorage.setItem(TARGET_LANG_KEY, cachedTargetLang)
-        } catch {}
-        return cachedTargetLang
-      }
-    } catch {
-      // ignore
-    }
-  }
-  return getStoredTargetLanguage()
+  return getTargetLanguageFromCache()
 }
 
 export function saveStoredTargetLanguage(lang: string): void {
-  cachedTargetLang = lang
-  try {
-    localStorage.setItem(TARGET_LANG_KEY, lang)
-  } catch {
-    // ignore
-  }
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    chrome.storage.local.set({ [TARGET_LANG_KEY]: lang }).catch(() => {})
-  }
+  saveTargetLanguageToCache(lang).catch(() => {})
 }

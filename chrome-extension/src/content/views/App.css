@@ -90,8 +90,7 @@ ytd-app[dark] .yt-playlist-top-banner:not([data-theme="light"]) {
   justify-content: space-between;
   gap: 8px;
   min-height: 32px;
-  flex-wrap: wrap;
-  row-gap: 8px;
+  width: 100%;
 }
 
 .yt-transcript-title-area {
@@ -132,8 +131,8 @@ ytd-app[dark] .yt-playlist-top-banner:not([data-theme="light"]) {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .yt-transcript-filename-badge {
@@ -194,9 +193,8 @@ ytd-app[dark] .yt-playlist-top-banner:not([data-theme="light"]) {
 .yt-transcript-header-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 /* Native YouTube Icon Button Style */
@@ -283,6 +281,287 @@ ytd-app[dark] .yt-playlist-top-banner:not([data-theme="light"]) {
 .yt-transcript-lang-select option {
   background: var(--banner-bg);
   color: var(--banner-text-primary);
+}
+
+/* Translate Action Chip Buttons (Translate with Cadence / Gemini) */
+.yt-transcript-chip-btn {
+  height: 28px;
+  background: var(--banner-chip-bg);
+  border: 1px solid transparent;
+  color: var(--banner-text-primary);
+  border-radius: 14px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.yt-transcript-chip-btn:hover {
+  background: var(--banner-chip-hover);
+}
+
+.yt-transcript-chip-btn.active {
+  background: var(--banner-accent-subtle);
+  color: var(--banner-accent);
+  border-color: rgba(62, 166, 255, 0.35);
+}
+
+.yt-transcript-chip-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.yt-transcript-chip-btn .yt-icon-spin {
+  animation: yt-icon-spin 1s linear infinite;
+}
+
+/* Action Bar (Row 2: Translate Engines + Target Language Pill) */
+.yt-transcript-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.yt-transcript-engine-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yt-transcript-target-pill {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: var(--banner-chip-bg);
+  border: 1px solid transparent;
+  color: var(--banner-text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  font-family: inherit;
+  user-select: none;
+}
+
+.yt-transcript-target-pill:hover {
+  background: var(--banner-chip-hover);
+  color: var(--banner-text-primary);
+  border-color: var(--banner-border);
+}
+
+/* Settings / Configuration Panel View */
+.yt-transcript-settings-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  animation: ytFadeIn 0.15s ease-out;
+}
+
+@keyframes ytFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.yt-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--banner-border);
+}
+
+.yt-settings-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yt-settings-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--banner-text-primary);
+  letter-spacing: 0.1px;
+}
+
+.yt-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 4px 6px 0;
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--banner-scrollbar-thumb) transparent;
+}
+
+.yt-settings-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.yt-settings-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.yt-settings-body::-webkit-scrollbar-thumb {
+  background-color: var(--banner-scrollbar-thumb);
+  border-radius: 3px;
+}
+
+.yt-settings-body::-webkit-scrollbar-thumb:hover {
+  background-color: var(--banner-text-secondary);
+}
+
+.yt-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yt-settings-group-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--banner-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.yt-settings-select {
+  width: 100%;
+  height: 32px;
+  background: var(--banner-input-bg);
+  border: 1px solid var(--banner-input-border);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--banner-text-primary);
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+}
+
+.yt-settings-select:hover {
+  background: var(--banner-chip-hover);
+}
+
+.yt-settings-select:focus {
+  border-color: var(--banner-accent);
+}
+
+.yt-settings-select option {
+  background: var(--banner-bg);
+  color: var(--banner-text-primary);
+}
+
+.yt-settings-engine-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.yt-settings-engine-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--banner-input-bg);
+  border: 1px solid var(--banner-input-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--banner-text-primary);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.yt-settings-engine-card:hover {
+  background: var(--banner-chip-hover);
+  border-color: var(--banner-border-hover);
+}
+
+.yt-settings-engine-card.active {
+  background: var(--banner-accent-subtle);
+  border-color: var(--banner-accent);
+  color: var(--banner-accent);
+  font-weight: 600;
+}
+
+.yt-settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--banner-input-bg);
+  border: 1px solid var(--banner-input-border);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.yt-settings-toggle-row:hover {
+  background: var(--banner-chip-hover);
+  border-color: var(--banner-border-hover);
+}
+
+.yt-settings-toggle-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--banner-text-primary);
+}
+
+.yt-settings-toggle-row input[type="checkbox"] {
+  accent-color: var(--banner-accent);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.yt-settings-hint {
+  font-size: 11px;
+  color: var(--banner-text-secondary);
+  line-height: 1.4;
 }
 
 /* Search Bar (YouTube Pill Input) */
@@ -595,9 +874,17 @@ ytd-app[dark] .yt-playlist-top-banner:not([data-theme="light"]) {
   width: 6px;
 }
 
+.yt-transcript-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .yt-transcript-body::-webkit-scrollbar-thumb {
   background-color: var(--banner-scrollbar-thumb);
   border-radius: 3px;
+}
+
+.yt-transcript-body::-webkit-scrollbar-thumb:hover {
+  background-color: var(--banner-text-secondary);
 }
 
 .yt-transcript-list {
@@ -922,6 +1209,13 @@ ytd-app[dark] .yt-transcript-action-btn.active:not([data-theme="light"]) {
     width: 28px;
     height: 28px;
     min-width: 28px;
+  }
+
+  .yt-transcript-chip-btn {
+    height: 26px;
+    padding: 0 8px;
+    font-size: 11px;
+    gap: 4px;
   }
 
   .yt-transcript-dropzone {
